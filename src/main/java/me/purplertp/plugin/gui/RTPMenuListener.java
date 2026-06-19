@@ -4,6 +4,7 @@ import me.purplertp.plugin.PurpleRTP;
 import me.purplertp.plugin.utils.MessageUtils;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
@@ -12,20 +13,16 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.inventory.Inventory;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 public class RTPMenuListener implements Listener {
 
-    // Tracks which menu a player currently has open:
-    //   null        = no tracked menu
-    //   "MAIN"      = main RTP menu
-    //   "OVERWORLD" / "NETHER" / "THE_END" = region sub-menu
+    // Tracks which menu a player currently has open
     private final Map<UUID, String> openMenus = new HashMap<>();
+
 
     private final PurpleRTP plugin;
     private final RTPMenu menu;
@@ -47,6 +44,24 @@ public class RTPMenuListener implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         openMenus.remove(event.getPlayer().getUniqueId());
+    }
+
+    /** Called before sending a player cross-server so they auto-RTP on arrival. */
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        String serverKey = plugin.getNetworkManager().consumePendingFlag(player.getUniqueId());
+        if (serverKey == null) return;
+
+        FileConfiguration cfg = plugin.getConfig();
+        String worldName = cfg.getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world");
+
+        // Small delay to let the player fully load in before teleporting
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline()) {
+                plugin.getRtpManager().randomTeleport(player, worldName);
+            }
+        }, 20L);
     }
 
     @EventHandler
@@ -114,11 +129,19 @@ public class RTPMenuListener implements Listener {
 
             List<String> servers = cfg.getStringList(base + "SERVERS");
             String serverKey = servers.isEmpty() ? null : servers.get(0);
-            String worldName = serverKey != null
-                    ? cfg.getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world")
-                    : "world";
+            if (serverKey == null) return;
 
-            plugin.getRtpManager().randomTeleport(player, worldName);
+            String localServer = cfg.getString("NETWORK.LOCAL-SERVER", "");
+
+            if (!localServer.isEmpty() && localServer.equalsIgnoreCase(serverKey)) {
+                // Player is already on this server — RTP locally
+                String worldName = cfg.getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world");
+                plugin.getRtpManager().randomTeleport(player, worldName);
+            } else {
+                // Write pending flag file then send cross-server — flag is read on arrival
+                sendActionBar(player, "&dConnecting to &5" + serverKey + "&d...");
+                plugin.getNetworkManager().sendPlayerWithRtp(player, serverKey);
+            }
             return;
         }
     }

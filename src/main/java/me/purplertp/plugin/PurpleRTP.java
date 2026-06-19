@@ -8,6 +8,8 @@ import me.purplertp.plugin.managers.LocationPoolManager;
 import me.purplertp.plugin.managers.RTPManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import me.purplertp.plugin.managers.NetworkManager;
+
 public class PurpleRTP extends JavaPlugin {
 
     private static PurpleRTP instance;
@@ -15,17 +17,22 @@ public class PurpleRTP extends JavaPlugin {
     private CooldownManager cooldownManager;
     private RTPManager rtpManager;
     private LocationPoolManager locationPoolManager;
+    private NetworkManager networkManager;
 
     @Override
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
 
-        cooldownManager    = new CooldownManager(this);
+        cooldownManager     = new CooldownManager(this);
         locationPoolManager = new LocationPoolManager(this);
-        rtpManager         = new RTPManager(this);
+        rtpManager          = new RTPManager(this);
+        networkManager      = new NetworkManager(this);
 
         locationPoolManager.startPoolFilling();
+
+        // Register BungeeCord plugin messaging channel for server switching
+        getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
 
         RTPMenuListener menuListener = new RTPMenuListener(this);
         getCommand("rtp").setExecutor(new RTPCommand(this, menuListener));
@@ -40,6 +47,7 @@ public class PurpleRTP extends JavaPlugin {
     public void onDisable() {
         cooldownManager.saveCooldowns();
         locationPoolManager.shutdown();
+        getServer().getMessenger().unregisterOutgoingPluginChannel(this, "BungeeCord");
         getLogger().info("PurpleRTP disabled.");
     }
 
@@ -48,4 +56,5 @@ public class PurpleRTP extends JavaPlugin {
     public CooldownManager getCooldownManager()         { return cooldownManager; }
     public RTPManager getRtpManager()                   { return rtpManager; }
     public LocationPoolManager getLocationPoolManager() { return locationPoolManager; }
+    public NetworkManager getNetworkManager()           { return networkManager; }
 }

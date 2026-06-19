@@ -48,6 +48,10 @@ WORLD-SETTINGS:
 
 # Network / BungeeCord proxy config
 NETWORK:
+  # Set this to the BungeeCord server name for THIS specific Spigot instance.
+  # Must match exactly what's in BungeeCord's config.yml under 'servers'.
+  # e.g. if this is the NA server, set "na". If EU, set "eu".
+  LOCAL-SERVER: "na"
   REGIONS:
     NA:
       PROXY-IP: "45.59.171.251"
