@@ -27,10 +27,11 @@ public class PurpleRTP extends JavaPlugin {
 
         locationPoolManager.startPoolFilling();
 
-        getCommand("rtp").setExecutor(new RTPCommand(this));
+        RTPMenuListener menuListener = new RTPMenuListener(this);
+        getCommand("rtp").setExecutor(new RTPCommand(this, menuListener));
         getCommand("rtpadmin").setExecutor(new RTPAdminCommand(this));
 
-        getServer().getPluginManager().registerEvents(new RTPMenuListener(this), this);
+        getServer().getPluginManager().registerEvents(menuListener, this);
 
         getLogger().info("PurpleRTP v2 enabled! Location pools warming up...");
     }

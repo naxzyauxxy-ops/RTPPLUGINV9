@@ -16,10 +16,12 @@ public class RTPCommand implements CommandExecutor {
 
     private final PurpleRTP plugin;
     private final RTPMenu menu;
+    private final me.purplertp.plugin.gui.RTPMenuListener listener;
 
-    public RTPCommand(PurpleRTP plugin) {
-        this.plugin = plugin;
-        this.menu   = new RTPMenu(plugin);
+    public RTPCommand(PurpleRTP plugin, me.purplertp.plugin.gui.RTPMenuListener listener) {
+        this.plugin   = plugin;
+        this.menu     = new RTPMenu(plugin);
+        this.listener = listener;
     }
 
     @Override
@@ -48,7 +50,7 @@ public class RTPCommand implements CommandExecutor {
             return true;
         }
 
-        menu.open(player);
+        menu.open(player, listener);
         return true;
     }
 }

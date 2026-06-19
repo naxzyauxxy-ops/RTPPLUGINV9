@@ -10,38 +10,43 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.inventory.Inventory;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public class RTPMenuListener implements Listener {
 
+    // Tracks which menu a player currently has open:
+    //   null        = no tracked menu
+    //   "MAIN"      = main RTP menu
+    //   "OVERWORLD" / "NETHER" / "THE_END" = region sub-menu
+    private final Map<UUID, String> openMenus = new HashMap<>();
+
     private final PurpleRTP plugin;
     private final RTPMenu menu;
-    private String cachedMainTitle;
-    // cached region titles keyed by dimensionKey
-    private final java.util.Map<String, String> cachedRegionTitles = new java.util.HashMap<>();
 
     public RTPMenuListener(PurpleRTP plugin) {
         this.plugin = plugin;
         this.menu   = new RTPMenu(plugin);
     }
 
-    private String getMainTitle() {
-        if (cachedMainTitle == null) {
-            cachedMainTitle = MessageUtils.format(
-                    plugin.getConfig().getString("RTP-MENU.TITLE", "&8Random Teleport"));
-        }
-        return cachedMainTitle;
+    /** Called by RTPMenu after it opens an inventory for the player. */
+    public void trackMain(Player player) {
+        openMenus.put(player.getUniqueId(), "MAIN");
     }
 
-    private String getRegionTitle(String dimensionKey) {
-        return cachedRegionTitles.computeIfAbsent(dimensionKey, k ->
-                MessageUtils.format(plugin.getConfig()
-                        .getString("REGION-MENUS." + k + ".TITLE", "&8Region Select")));
+    public void trackRegion(Player player, String dimensionKey) {
+        openMenus.put(player.getUniqueId(), dimensionKey);
     }
 
-    public void invalidateCache() {
-        cachedMainTitle = null;
-        cachedRegionTitles.clear();
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        openMenus.remove(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
@@ -49,15 +54,20 @@ public class RTPMenuListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (event.getView().getTopInventory().getType() != InventoryType.CHEST) return;
 
-        String openTitle = event.getView().getTitle();
+        String menuKey = openMenus.get(player.getUniqueId());
+        if (menuKey == null) return; // not one of our menus
+
+        // Always cancel clicks in our menus
+        event.setCancelled(true);
+
+        // Only handle clicks in the top inventory
+        if (event.getClickedInventory() != event.getView().getTopInventory()) return;
+        if (event.getCurrentItem() == null) return;
+
+        FileConfiguration cfg = plugin.getConfig();
 
         // ── Main RTP menu ────────────────────────────────────────────────────
-        if (openTitle.equals(getMainTitle())) {
-            event.setCancelled(true);
-            if (event.getClickedInventory() != event.getView().getTopInventory()) return;
-            if (event.getCurrentItem() == null) return;
-
-            FileConfiguration cfg = plugin.getConfig();
+        if (menuKey.equals("MAIN")) {
             ConfigurationSection buttons = cfg.getConfigurationSection("RTP-MENU.BUTTONS");
             if (buttons == null) return;
 
@@ -69,13 +79,11 @@ public class RTPMenuListener implements Listener {
                 boolean regionEnabled = cfg.getBoolean(base + "ENABLED-REGION", false);
                 String worldName = cfg.getString(base + "WORLD", "world");
 
-                player.closeInventory();
+                player.closeInventory(); // removes from openMenus via InventoryCloseEvent
 
                 if (regionEnabled) {
-                    // Open the region sub-menu for this dimension key
-                    menu.openRegionMenu(player, key);
+                    menu.openRegionMenu(player, key, this);
                 } else {
-                    // Teleport directly (nether / end bypass region selection)
                     if (plugin.getRtpManager().isInRtp(player.getUniqueId())) {
                         sendActionBar(player, "&cYou are already teleporting!");
                         return;
@@ -87,41 +95,30 @@ public class RTPMenuListener implements Listener {
             return;
         }
 
-        // ── Region sub-menus ─────────────────────────────────────────────────
-        for (String dimensionKey : new String[]{"OVERWORLD", "NETHER", "THE_END"}) {
-            if (!openTitle.equals(getRegionTitle(dimensionKey))) continue;
+        // ── Region sub-menu ──────────────────────────────────────────────────
+        String dimensionKey = menuKey; // e.g. "OVERWORLD", "NETHER", "THE_END"
+        String sectionPath  = "REGION-MENUS." + dimensionKey + ".BUTTONS";
+        ConfigurationSection buttons = cfg.getConfigurationSection(sectionPath);
+        if (buttons == null) return;
 
-            event.setCancelled(true);
-            if (event.getClickedInventory() != event.getView().getTopInventory()) return;
-            if (event.getCurrentItem() == null) return;
+        for (String regionKey : buttons.getKeys(false)) {
+            String base = sectionPath + "." + regionKey + ".";
+            if (cfg.getInt(base + "SLOT") != event.getRawSlot()) continue;
 
-            FileConfiguration cfg = plugin.getConfig();
-            String sectionPath = "REGION-MENUS." + dimensionKey + ".BUTTONS";
-            ConfigurationSection buttons = cfg.getConfigurationSection(sectionPath);
-            if (buttons == null) return;
+            player.closeInventory();
 
-            for (String regionKey : buttons.getKeys(false)) {
-                String base = sectionPath + "." + regionKey + ".";
-                if (cfg.getInt(base + "SLOT") != event.getRawSlot()) continue;
-
-                player.closeInventory();
-
-                if (plugin.getRtpManager().isInRtp(player.getUniqueId())) {
-                    sendActionBar(player, "&cYou are already teleporting!");
-                    return;
-                }
-
-                // Resolve world from the first server's TARGET-WORLD in SERVER-SETTINGS
-                // For the region menu buttons, the server list tells us which server key to use
-                java.util.List<String> servers = cfg.getStringList(base + "SERVERS");
-                String serverKey = servers.isEmpty() ? null : servers.get(0);
-                String worldName = serverKey != null
-                        ? cfg.getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world")
-                        : "world";
-
-                plugin.getRtpManager().randomTeleport(player, worldName);
+            if (plugin.getRtpManager().isInRtp(player.getUniqueId())) {
+                sendActionBar(player, "&cYou are already teleporting!");
                 return;
             }
+
+            List<String> servers = cfg.getStringList(base + "SERVERS");
+            String serverKey = servers.isEmpty() ? null : servers.get(0);
+            String worldName = serverKey != null
+                    ? cfg.getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world")
+                    : "world";
+
+            plugin.getRtpManager().randomTeleport(player, worldName);
             return;
         }
     }
