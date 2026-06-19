@@ -5,10 +5,9 @@ import me.purplertp.plugin.commands.RTPCommand;
 import me.purplertp.plugin.gui.RTPMenuListener;
 import me.purplertp.plugin.managers.CooldownManager;
 import me.purplertp.plugin.managers.LocationPoolManager;
+import me.purplertp.plugin.managers.NetworkManager;
 import me.purplertp.plugin.managers.RTPManager;
 import org.bukkit.plugin.java.JavaPlugin;
-
-import me.purplertp.plugin.managers.NetworkManager;
 
 public class PurpleRTP extends JavaPlugin {
 
@@ -24,6 +23,15 @@ public class PurpleRTP extends JavaPlugin {
         instance = this;
         saveDefaultConfig();
 
+        // Warn if BungeeCord mode is not enabled in spigot.yml
+        if (!getServer().spigot().getConfig().getBoolean("settings.bungeecord", false)) {
+            getLogger().warning("============================================");
+            getLogger().warning("BungeeCord mode is NOT enabled in spigot.yml!");
+            getLogger().warning("Cross-server transfers will NOT work.");
+            getLogger().warning("Set 'settings.bungeecord: true' in spigot.yml");
+            getLogger().warning("============================================");
+        }
+
         cooldownManager     = new CooldownManager(this);
         locationPoolManager = new LocationPoolManager(this);
         rtpManager          = new RTPManager(this);
@@ -31,8 +39,9 @@ public class PurpleRTP extends JavaPlugin {
 
         locationPoolManager.startPoolFilling();
 
-        // Register BungeeCord plugin messaging channel for server switching
+        // Must register BEFORE any sendPluginMessage calls
         getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
+        getLogger().info("Registered BungeeCord outgoing channel.");
 
         RTPMenuListener menuListener = new RTPMenuListener(this);
         getCommand("rtp").setExecutor(new RTPCommand(this, menuListener));
@@ -40,7 +49,8 @@ public class PurpleRTP extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(menuListener, this);
 
-        getLogger().info("PurpleRTP v2 enabled! Location pools warming up...");
+        getLogger().info("PurpleRTP enabled. LOCAL-SERVER=" +
+                getConfig().getString("NETWORK.LOCAL-SERVER", "(not set)"));
     }
 
     @Override

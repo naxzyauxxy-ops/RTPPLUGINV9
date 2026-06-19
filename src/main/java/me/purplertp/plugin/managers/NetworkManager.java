@@ -23,23 +23,28 @@ public class NetworkManager {
     }
 
     /**
-     * Writes a pending RTP flag then sends the player cross-server on the next tick.
-     * The 1-tick delay is required — sendPluginMessage is silently dropped if called
-     * during an inventory event before the packet queue flushes.
+     * Writes a pending RTP flag then sends the player to another BungeeCord server.
+     * The 1-tick delay is mandatory — sendPluginMessage is silently dropped when
+     * called during inventory/click events before the packet queue flushes.
      */
     public void sendPlayerWithRtp(Player player, String serverKey) {
         writePendingFlag(player.getUniqueId(), serverKey);
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (!player.isOnline()) return;
+            if (!player.isOnline()) {
+                plugin.getLogger().warning("[RTP] Player " + player.getName() + " went offline before transfer.");
+                return;
+            }
             ByteArrayDataOutput out = ByteStreams.newDataOutput();
             out.writeUTF("Connect");
             out.writeUTF(serverKey);
             player.sendPluginMessage(plugin, "BungeeCord", out.toByteArray());
+            plugin.getLogger().info("[RTP] Sent " + player.getName() + " to server: " + serverKey);
         }, 1L);
     }
 
     /**
-     * Checks for a pending RTP flag on join. Returns the serverKey or null.
+     * Called on PlayerJoinEvent. Reads and deletes the flag file.
+     * Returns the serverKey to RTP with, or null if no pending flag.
      */
     public String consumePendingFlag(UUID uuid) {
         File flag = flagFile(uuid);
@@ -47,6 +52,9 @@ public class NetworkManager {
         try {
             String serverKey = Files.readString(flag.toPath()).trim();
             flag.delete();
+            if (!serverKey.isEmpty()) {
+                plugin.getLogger().info("[RTP] Consumed pending flag for " + uuid + " -> " + serverKey);
+            }
             return serverKey.isEmpty() ? null : serverKey;
         } catch (IOException e) {
             plugin.getLogger().warning("Could not read pending RTP flag: " + e.getMessage());
@@ -62,6 +70,7 @@ public class NetworkManager {
     private void writePendingFlag(UUID uuid, String serverKey) {
         try (FileWriter fw = new FileWriter(flagFile(uuid))) {
             fw.write(serverKey);
+            plugin.getLogger().info("[RTP] Wrote pending flag for " + uuid + " -> " + serverKey);
         } catch (IOException e) {
             plugin.getLogger().warning("Could not write pending RTP flag: " + e.getMessage());
         }
