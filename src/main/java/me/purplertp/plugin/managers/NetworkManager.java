@@ -1,24 +1,19 @@
 package me.purplertp.plugin.managers;
 
-import com.google.common.io.ByteArrayDataInput;
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
 import me.purplertp.plugin.PurpleRTP;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.messaging.PluginMessageListener;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.List;
 import java.util.UUID;
 
-public class NetworkManager implements PluginMessageListener {
+public class NetworkManager {
 
     private final PurpleRTP plugin;
-    // Flat-file directory for pending RTP flags — survives cross-server transfer
     private final File pendingDir;
 
     public NetworkManager(PurpleRTP plugin) {
@@ -27,30 +22,24 @@ public class NetworkManager implements PluginMessageListener {
         pendingDir.mkdirs();
     }
 
-    // ── Sending side (player clicks EU/NA in region menu) ───────────────────
-
     /**
-     * Writes a pending-RTP flag file for this player so the target server
-     * knows to RTP them on join, then sends them to that BungeeCord server.
+     * Writes a pending RTP flag then sends the player cross-server on the next tick.
+     * The 1-tick delay is required — sendPluginMessage is silently dropped if called
+     * during an inventory event before the packet queue flushes.
      */
     public void sendPlayerWithRtp(Player player, String serverKey) {
         writePendingFlag(player.getUniqueId(), serverKey);
-        connectToServer(player, serverKey);
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) return;
+            ByteArrayDataOutput out = ByteStreams.newDataOutput();
+            out.writeUTF("Connect");
+            out.writeUTF(serverKey);
+            player.sendPluginMessage(plugin, "BungeeCord", out.toByteArray());
+        }, 1L);
     }
-
-    /** Sends the player to a BungeeCord server by name. */
-    public void connectToServer(Player player, String serverName) {
-        ByteArrayDataOutput out = ByteStreams.newDataOutput();
-        out.writeUTF("Connect");
-        out.writeUTF(serverName);
-        player.sendPluginMessage(plugin, "BungeeCord", out.toByteArray());
-    }
-
-    // ── Receiving side (player arrives on target server) ────────────────────
 
     /**
-     * Called on player join. Checks for a pending RTP flag file.
-     * Returns the serverKey to RTP with, or null if no flag exists.
+     * Checks for a pending RTP flag on join. Returns the serverKey or null.
      */
     public String consumePendingFlag(UUID uuid) {
         File flag = flagFile(uuid);
@@ -66,35 +55,6 @@ public class NetworkManager implements PluginMessageListener {
         }
     }
 
-    // ── Plugin messaging channel (optional fallback / future use) ────────────
-
-    @Override
-    public void onPluginMessageReceived(String channel, Player player, byte[] message) {
-        // Reserved for future BungeeCord plugin message handling
-    }
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    /**
-     * Given a SERVER-SETTINGS key (e.g. "eu", "na_nether"), returns the BungeeCord
-     * server name to connect to. The SERVERS list in NETWORK.REGIONS defines the
-     * BungeeCord server name directly (e.g. "eu", "na").
-     */
-    public String resolveBungeeServer(String serverKey) {
-        ConfigurationSection regions = plugin.getConfig().getConfigurationSection("NETWORK.REGIONS");
-        if (regions == null) return serverKey;
-
-        for (String regionName : regions.getKeys(false)) {
-            List<String> servers = plugin.getConfig()
-                    .getStringList("NETWORK.REGIONS." + regionName + ".SERVERS");
-            if (servers.contains(serverKey)) {
-                return serverKey; // The server key IS the BungeeCord server name
-            }
-        }
-        return serverKey;
-    }
-
-    /** Returns the LOCAL-SERVER value from config, or empty string if not set. */
     public String getLocalServer() {
         return plugin.getConfig().getString("NETWORK.LOCAL-SERVER", "");
     }

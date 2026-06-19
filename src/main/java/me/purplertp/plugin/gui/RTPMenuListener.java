@@ -4,7 +4,6 @@ import me.purplertp.plugin.PurpleRTP;
 import me.purplertp.plugin.utils.MessageUtils;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
-import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
@@ -13,6 +12,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.PlayerJoinEvent;
 
 import java.util.HashMap;
 import java.util.List;
@@ -21,10 +21,7 @@ import java.util.UUID;
 
 public class RTPMenuListener implements Listener {
 
-    // Tracks which menu a player currently has open
     private final Map<UUID, String> openMenus = new HashMap<>();
-
-
     private final PurpleRTP plugin;
     private final RTPMenu menu;
 
@@ -33,7 +30,6 @@ public class RTPMenuListener implements Listener {
         this.menu   = new RTPMenu(plugin);
     }
 
-    /** Called by RTPMenu after it opens an inventory for the player. */
     public void trackMain(Player player) {
         openMenus.put(player.getUniqueId(), "MAIN");
     }
@@ -47,22 +43,21 @@ public class RTPMenuListener implements Listener {
         openMenus.remove(event.getPlayer().getUniqueId());
     }
 
-    /** Called before sending a player cross-server so they auto-RTP on arrival. */
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         String serverKey = plugin.getNetworkManager().consumePendingFlag(player.getUniqueId());
         if (serverKey == null) return;
 
-        FileConfiguration cfg = plugin.getConfig();
-        String worldName = cfg.getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world");
+        String worldName = plugin.getConfig()
+                .getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world");
 
-        // Small delay to let the player fully load in before teleporting
+        // 5-tick delay so the player is fully loaded before RTP fires
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline()) {
                 plugin.getRtpManager().randomTeleport(player, worldName);
             }
-        }, 20L);
+        }, 5L);
     }
 
     @EventHandler
@@ -71,18 +66,16 @@ public class RTPMenuListener implements Listener {
         if (event.getView().getTopInventory().getType() != InventoryType.CHEST) return;
 
         String menuKey = openMenus.get(player.getUniqueId());
-        if (menuKey == null) return; // not one of our menus
+        if (menuKey == null) return;
 
-        // Always cancel clicks in our menus
         event.setCancelled(true);
 
-        // Only handle clicks in the top inventory
         if (event.getClickedInventory() != event.getView().getTopInventory()) return;
         if (event.getCurrentItem() == null) return;
 
         FileConfiguration cfg = plugin.getConfig();
 
-        // ── Main RTP menu ────────────────────────────────────────────────────
+        // ── Main menu ────────────────────────────────────────────────────────
         if (menuKey.equals("MAIN")) {
             ConfigurationSection buttons = cfg.getConfigurationSection("RTP-MENU.BUTTONS");
             if (buttons == null) return;
@@ -95,13 +88,13 @@ public class RTPMenuListener implements Listener {
                 boolean regionEnabled = cfg.getBoolean(base + "ENABLED-REGION", false);
                 String worldName = cfg.getString(base + "WORLD", "world");
 
-                player.closeInventory(); // removes from openMenus via InventoryCloseEvent
+                player.closeInventory();
 
                 if (regionEnabled) {
                     menu.openRegionMenu(player, key, this);
                 } else {
                     if (plugin.getRtpManager().isInRtp(player.getUniqueId())) {
-                        sendActionBar(player, "&cYou are already teleporting!");
+                        sendActionBar(player, "&#f40d0d(!) &7You are already teleporting!");
                         return;
                     }
                     plugin.getRtpManager().randomTeleport(player, worldName);
@@ -112,8 +105,7 @@ public class RTPMenuListener implements Listener {
         }
 
         // ── Region sub-menu ──────────────────────────────────────────────────
-        String dimensionKey = menuKey; // e.g. "OVERWORLD", "NETHER", "THE_END"
-        String sectionPath  = "REGION-MENUS." + dimensionKey + ".BUTTONS";
+        String sectionPath = "REGION-MENUS." + menuKey + ".BUTTONS";
         ConfigurationSection buttons = cfg.getConfigurationSection(sectionPath);
         if (buttons == null) return;
 
@@ -124,7 +116,7 @@ public class RTPMenuListener implements Listener {
             player.closeInventory();
 
             if (plugin.getRtpManager().isInRtp(player.getUniqueId())) {
-                sendActionBar(player, "&cYou are already teleporting!");
+                sendActionBar(player, "&#f40d0d(!) &7You are already teleporting!");
                 return;
             }
 
@@ -132,15 +124,15 @@ public class RTPMenuListener implements Listener {
             String serverKey = servers.isEmpty() ? null : servers.get(0);
             if (serverKey == null) return;
 
-            String localServer = cfg.getString("NETWORK.LOCAL-SERVER", "");
+            String localServer = plugin.getNetworkManager().getLocalServer();
 
             if (!localServer.isEmpty() && localServer.equalsIgnoreCase(serverKey)) {
-                // Player is already on this server — RTP locally
+                // Already on this server — RTP locally, no transfer
                 String worldName = cfg.getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world");
                 plugin.getRtpManager().randomTeleport(player, worldName);
             } else {
-                // Write pending flag file then send cross-server — flag is read on arrival
-                sendActionBar(player, "&dConnecting to &5" + serverKey + "&d...");
+                // Send cross-server with pending RTP flag
+                sendActionBar(player, "&8(&#f40d0d!&8) &7Connecting to &#f40d0d" + serverKey.toUpperCase() + "&7...");
                 plugin.getNetworkManager().sendPlayerWithRtp(player, serverKey);
             }
             return;

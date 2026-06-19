@@ -6,12 +6,10 @@ import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.Collections;
 import java.util.Set;
@@ -27,158 +25,100 @@ public class RTPManager {
         this.plugin = plugin;
     }
 
+    public boolean isInRtp(UUID uuid) { return inRtp.contains(uuid); }
+    public void cancelRtp(UUID uuid)  { inRtp.remove(uuid); }
     public Set<UUID> getPlayersInRtp() { return inRtp; }
-    public boolean isInRtp(UUID uuid)  { return inRtp.contains(uuid); }
-    public void cancelRtp(UUID uuid)   { inRtp.remove(uuid); }
 
-    /**
-     * Initiates an RTP for the player into the given world.
-     * worldName must match a WORLD-SETTINGS entry in config.
-     */
     public void randomTeleport(Player player, String worldName) {
         FileConfiguration cfg = plugin.getConfig();
 
-        // Global enabled check
         if (!cfg.getBoolean("ENABLED", true)) {
-            actionbar(player, cfg.getString("MESSAGES.DISABLED", "&cRTP is disabled."));
+            actionbar(player, cfg.getString("MESSAGES.DISABLED"));
             return;
         }
 
-        // Max concurrent players
-        int maxPlayers = cfg.getInt("SETTINGS.PLAYERS-IN-RTP", 150);
-        if (inRtp.size() >= maxPlayers) {
-            actionbar(player, cfg.getString("MESSAGES.MAX-PLAYERS", "&cToo many players using RTP."));
+        if (inRtp.size() >= cfg.getInt("SETTINGS.PLAYERS-IN-RTP", 100)) {
+            actionbar(player, cfg.getString("MESSAGES.MAX-PLAYERS"));
             return;
         }
 
-        // Resolve world
         World world = Bukkit.getWorld(worldName);
         if (world == null) {
-            actionbar(player, cfg.getString("MESSAGES.WORLD-NOT-EXIST", "&cWorld not found."));
+            actionbar(player, cfg.getString("MESSAGES.WORLD-NOT-EXIST"));
             return;
         }
 
-        // Cooldown
         if (!player.hasPermission("purplertp.bypass.cooldown")) {
             CooldownManager cm = plugin.getCooldownManager();
             if (cm.isOnCooldown(player.getUniqueId(), worldName)) {
                 long remaining = cm.getRemainingCooldown(player.getUniqueId(), worldName);
-                String msg = cfg.getString("MESSAGES.COOLDOWN", "&cWait {remaining}s.")
-                        .replace("{remaining}", String.valueOf(remaining));
-                actionbar(player, msg);
+                actionbar(player, cfg.getString("MESSAGES.COOLDOWN")
+                        .replace("{remaining}", String.valueOf(remaining)));
                 return;
             }
         }
 
-        // Config path for this world
+        if (inRtp.contains(player.getUniqueId())) {
+            actionbar(player, "&8(&#f40d0d!&8) &7You are already teleporting!");
+            return;
+        }
+
+        inRtp.add(player.getUniqueId());
+
         String path     = "WORLD-SETTINGS." + worldName + ".";
         int cooldown    = cfg.getInt(path + "COOLDOWN", 0);
-        int countdown   = cfg.getInt("SETTINGS.COUNTDOWN", 5);
         int centerX     = cfg.getInt(path + "CENTER-X", 0);
         int centerZ     = cfg.getInt(path + "CENTER-Z", 0);
         int minRadius   = cfg.getInt(path + "MIN-RADIUS", 500);
         int maxRadius   = cfg.getInt(path + "MAX-RADIUS", 5000);
-        int maxAttempts = cfg.getInt("SETTINGS.MAX-ATTEMPTS", 25);
+        int maxAttempts = cfg.getInt(path + "MAX-ATTEMPTS",
+                          cfg.getInt("SETTINGS.MAX-ATTEMPTS", 25));
 
-        inRtp.add(player.getUniqueId());
-
-        // Try pool first
+        // ── Pool hit: instant teleport ───────────────────────────────────────
         Location poolLoc = plugin.getLocationPoolManager().pollLocation(worldName);
-
         if (poolLoc != null) {
-            int startX = player.getLocation().getBlockX();
-            int startZ = player.getLocation().getBlockZ();
-            Location startLoc = player.getLocation();
-            runCountdown(player, countdown, startX, startZ, startLoc, poolLoc, cooldown, worldName);
+            doTeleport(player, poolLoc, cooldown, worldName);
             return;
         }
 
-        // Pool empty — warn and search async
-        if (plugin.getLocationPoolManager().poolSize(worldName) == 0) {
-            actionbar(player, cfg.getString("MESSAGES.POOL-WARMING",
-                    "&eRTP pool is warming up, please try again in a moment."));
-            inRtp.remove(player.getUniqueId());
-            return;
-        }
-
-        // Fallback: search async
-        actionbar(player, cfg.getString("MESSAGES.SEARCHING", "&dSearching..."));
-
-        BukkitRunnable searchTicker = new BukkitRunnable() {
-            @Override public void run() {
-                if (!player.isOnline() || !inRtp.contains(player.getUniqueId())) { cancel(); return; }
-                actionbar(player, cfg.getString("MESSAGES.SEARCHING", "&dSearching..."));
-            }
-        };
-        searchTicker.runTaskTimer(plugin, 0L, 20L);
+        // ── Pool empty: search async ─────────────────────────────────────────
+        actionbar(player, cfg.getString("MESSAGES.SEARCHING",
+                "&8(&#f40d0d!&8) &7Searching for a safe location..."));
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Location dest = findSafeLocation(world, centerX, centerZ, minRadius, maxRadius, maxAttempts);
 
             Bukkit.getScheduler().runTask(plugin, () -> {
-                searchTicker.cancel();
                 if (!player.isOnline() || !inRtp.contains(player.getUniqueId())) return;
 
                 if (dest == null) {
                     inRtp.remove(player.getUniqueId());
-                    String msg = cfg.getString("MESSAGES.MAX-ATTEMPTS", "&cNo safe location found.")
-                            .replace("{attempts}", String.valueOf(maxAttempts));
-                    actionbar(player, msg);
+                    actionbar(player, cfg.getString("MESSAGES.MAX-ATTEMPTS",
+                            "&8(&#f40d0d!&8) &7No safe location found.")
+                            .replace("{attempts}", String.valueOf(maxAttempts)));
                     return;
                 }
-
-                int startX = player.getLocation().getBlockX();
-                int startZ = player.getLocation().getBlockZ();
-                Location startLoc = player.getLocation();
-                runCountdown(player, countdown, startX, startZ, startLoc, dest, cooldown, worldName);
+                doTeleport(player, dest, cooldown, worldName);
             });
         });
     }
 
-    // -----------------------------------------------------------------------
+    // ── Instant teleport, no countdown ──────────────────────────────────────
 
-    private void runCountdown(Player player, int countdown, int startX, int startZ,
-                               Location startLoc, Location dest, int cooldown, String worldName) {
-        new BukkitRunnable() {
-            int secondsLeft = countdown;
+    private void doTeleport(Player player, Location dest, int cooldown, String worldName) {
+        inRtp.remove(player.getUniqueId());
+        player.teleport(dest);
+        player.playSound(dest, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1f, 1.2f);
 
-            @Override public void run() {
-                if (!player.isOnline() || !inRtp.contains(player.getUniqueId())) { cancel(); return; }
+        if (cooldown > 0) {
+            plugin.getCooldownManager().setCooldown(player.getUniqueId(), worldName, cooldown);
+        }
 
-                // Movement check
-                double dx = Math.abs(player.getLocation().getX() - startX);
-                double dz = Math.abs(player.getLocation().getZ() - startZ);
-                if (dx > 1 || dz > 1) {
-                    inRtp.remove(player.getUniqueId());
-                    cancel();
-                    actionbar(player, "&cTeleport cancelled &7— &cdon't move!");
-                    player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
-                    return;
-                }
-
-                if (secondsLeft > 0) {
-                    actionbar(player, "&fTeleporting in &b" + secondsLeft + "&f...");
-                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1f, 1f);
-                    if (player.getWorld() != null) {
-                        player.getWorld().spawnParticle(Particle.REVERSE_PORTAL,
-                                player.getLocation().clone().add(0, 1, 0), 15, 0.3, 0.5, 0.3, 0.05);
-                    }
-                    secondsLeft--;
-                } else {
-                    // Teleport
-                    cancel();
-                    inRtp.remove(player.getUniqueId());
-                    player.teleport(dest);
-                    player.playSound(dest, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1f, 1f);
-                    if (cooldown > 0) {
-                        plugin.getCooldownManager().setCooldown(player.getUniqueId(), worldName, cooldown);
-                    }
-                    String found = plugin.getConfig().getString("MESSAGES.SAFE-LOCATION-FOUND", "");
-                    if (found != null && !found.isEmpty()) actionbar(player, found);
-                }
-            }
-        }.runTaskTimer(plugin, 0L, 20L);
+        String found = plugin.getConfig().getString("MESSAGES.SAFE-LOCATION-FOUND", "");
+        if (found != null && !found.isEmpty()) actionbar(player, found);
     }
+
+    // ── Location search (async) ──────────────────────────────────────────────
 
     private Location findSafeLocation(World world, int centerX, int centerZ,
                                        int minRadius, int maxRadius, int maxAttempts) {
@@ -192,12 +132,12 @@ public class RTPManager {
                 int x = centerX + (int)(Math.cos(angle) * radius);
                 int z = centerZ + (int)(Math.sin(angle) * radius);
 
-                world.getChunkAt(x >> 4, z >> 4); // ensure chunk is loaded
+                world.getChunkAt(x >> 4, z >> 4);
 
-                Location candidate = getSafeY(world, x, z, isNether);
-                if (candidate != null) {
-                    candidate.setYaw(rng.nextFloat() * 360f);
-                    return candidate;
+                Location loc = getSafeY(world, x, z, isNether);
+                if (loc != null) {
+                    loc.setYaw(rng.nextFloat() * 360f);
+                    return loc;
                 }
             } catch (Exception ignored) {}
         }
@@ -228,6 +168,7 @@ public class RTPManager {
     }
 
     private void actionbar(Player player, String message) {
+        if (message == null || message.isEmpty()) return;
         player.spigot().sendMessage(ChatMessageType.ACTION_BAR,
                 new TextComponent(MessageUtils.format(message)));
     }
