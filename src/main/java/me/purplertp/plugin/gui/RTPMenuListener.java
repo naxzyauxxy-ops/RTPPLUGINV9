@@ -113,11 +113,11 @@ public class RTPMenuListener implements Listener {
                 String worldName = cfg.getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world");
                 plugin.getRtpManager().randomTeleport(player, worldName);
             } else {
-                // 1) Send socket message to target server so it knows to RTP this player on join
+                // 1) Tell target backend to RTP this player when they arrive
                 plugin.getNetworkManager().sendRtpTrigger(player.getUniqueId(), serverKey);
-                // 2) Transfer player via BungeeCord channel (Velocity handles this natively)
+                // 2) Transfer player directly to the target proxy (MC 1.20.5 Transfer packet)
                 sendActionBar(player, "&8(&#f40d0d!&8) &7Connecting to &#f40d0d" + serverKey.toUpperCase() + "&7...");
-                plugin.getNetworkManager().connectToServer(player, serverKey);
+                plugin.getNetworkManager().transferToProxy(player, serverKey);
             }
             return;
         }

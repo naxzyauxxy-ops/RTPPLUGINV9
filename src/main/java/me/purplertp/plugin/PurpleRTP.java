@@ -33,9 +33,6 @@ public class PurpleRTP extends JavaPlugin {
         // Start TCP socket server to receive RTP triggers from other servers
         networkManager.startSocketServer();
 
-        // Register outgoing BungeeCord channel for server transfers (works with Velocity)
-        getServer().getMessenger().registerOutgoingPluginChannel(this, NetworkManager.BUNGEE_CHANNEL);
-
         RTPMenuListener menuListener = new RTPMenuListener(this);
         getCommand("rtp").setExecutor(new RTPCommand(this, menuListener));
         getCommand("rtpadmin").setExecutor(new RTPAdminCommand(this));
@@ -50,7 +47,6 @@ public class PurpleRTP extends JavaPlugin {
         cooldownManager.saveCooldowns();
         locationPoolManager.shutdown();
         networkManager.stopSocketServer();
-        getServer().getMessenger().unregisterOutgoingPluginChannel(this, NetworkManager.BUNGEE_CHANNEL);
         getLogger().info("PurpleRTP disabled.");
     }
 
