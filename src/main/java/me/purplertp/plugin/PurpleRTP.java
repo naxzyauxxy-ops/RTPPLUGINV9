@@ -23,15 +23,6 @@ public class PurpleRTP extends JavaPlugin {
         instance = this;
         saveDefaultConfig();
 
-        // Warn if BungeeCord mode is not enabled in spigot.yml
-        if (!getServer().spigot().getConfig().getBoolean("settings.bungeecord", false)) {
-            getLogger().warning("============================================");
-            getLogger().warning("BungeeCord mode is NOT enabled in spigot.yml!");
-            getLogger().warning("Cross-server transfers will NOT work.");
-            getLogger().warning("Set 'settings.bungeecord: true' in spigot.yml");
-            getLogger().warning("============================================");
-        }
-
         cooldownManager     = new CooldownManager(this);
         locationPoolManager = new LocationPoolManager(this);
         rtpManager          = new RTPManager(this);
@@ -39,30 +30,31 @@ public class PurpleRTP extends JavaPlugin {
 
         locationPoolManager.startPoolFilling();
 
-        // Must register BEFORE any sendPluginMessage calls
-        getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
-        getLogger().info("Registered BungeeCord outgoing channel.");
+        // Start TCP socket server to receive RTP triggers from other servers
+        networkManager.startSocketServer();
+
+        // Register outgoing BungeeCord channel for server transfers (works with Velocity)
+        getServer().getMessenger().registerOutgoingPluginChannel(this, NetworkManager.BUNGEE_CHANNEL);
 
         RTPMenuListener menuListener = new RTPMenuListener(this);
         getCommand("rtp").setExecutor(new RTPCommand(this, menuListener));
         getCommand("rtpadmin").setExecutor(new RTPAdminCommand(this));
-
         getServer().getPluginManager().registerEvents(menuListener, this);
 
-        getLogger().info("PurpleRTP enabled. LOCAL-SERVER=" +
-                getConfig().getString("NETWORK.LOCAL-SERVER", "(not set)"));
+        getLogger().info("PurpleRTP enabled. LOCAL-SERVER="
+                + getConfig().getString("NETWORK.LOCAL-SERVER", "(not set)"));
     }
 
     @Override
     public void onDisable() {
         cooldownManager.saveCooldowns();
         locationPoolManager.shutdown();
-        getServer().getMessenger().unregisterOutgoingPluginChannel(this, "BungeeCord");
+        networkManager.stopSocketServer();
+        getServer().getMessenger().unregisterOutgoingPluginChannel(this, NetworkManager.BUNGEE_CHANNEL);
         getLogger().info("PurpleRTP disabled.");
     }
 
-    public static PurpleRTP getInstance() { return instance; }
-
+    public static PurpleRTP getInstance()               { return instance; }
     public CooldownManager getCooldownManager()         { return cooldownManager; }
     public RTPManager getRtpManager()                   { return rtpManager; }
     public LocationPoolManager getLocationPoolManager() { return locationPoolManager; }

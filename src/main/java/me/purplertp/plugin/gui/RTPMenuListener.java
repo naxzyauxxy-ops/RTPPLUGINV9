@@ -12,7 +12,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.event.player.PlayerJoinEvent;
 
 import java.util.HashMap;
 import java.util.List;
@@ -41,23 +40,6 @@ public class RTPMenuListener implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         openMenus.remove(event.getPlayer().getUniqueId());
-    }
-
-    @EventHandler
-    public void onPlayerJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-        String serverKey = plugin.getNetworkManager().consumePendingFlag(player.getUniqueId());
-        if (serverKey == null) return;
-
-        String worldName = plugin.getConfig()
-                .getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world");
-
-        // 5-tick delay so the player is fully loaded before RTP fires
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (player.isOnline()) {
-                plugin.getRtpManager().randomTeleport(player, worldName);
-            }
-        }, 5L);
     }
 
     @EventHandler
@@ -127,13 +109,15 @@ public class RTPMenuListener implements Listener {
             String localServer = plugin.getNetworkManager().getLocalServer();
 
             if (!localServer.isEmpty() && localServer.equalsIgnoreCase(serverKey)) {
-                // Already on this server — RTP locally, no transfer
+                // Already on this server — RTP locally
                 String worldName = cfg.getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world");
                 plugin.getRtpManager().randomTeleport(player, worldName);
             } else {
-                // Send cross-server with pending RTP flag
+                // 1) Send socket message to target server so it knows to RTP this player on join
+                plugin.getNetworkManager().sendRtpTrigger(player.getUniqueId(), serverKey);
+                // 2) Transfer player via BungeeCord channel (Velocity handles this natively)
                 sendActionBar(player, "&8(&#f40d0d!&8) &7Connecting to &#f40d0d" + serverKey.toUpperCase() + "&7...");
-                plugin.getNetworkManager().sendPlayerWithRtp(player, serverKey);
+                plugin.getNetworkManager().connectToServer(player, serverKey);
             }
             return;
         }
