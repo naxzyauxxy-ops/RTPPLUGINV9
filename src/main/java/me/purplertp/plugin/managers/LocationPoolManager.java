@@ -102,8 +102,7 @@ public class LocationPoolManager {
                 int x = centerX + (int)(Math.cos(angle) * radius);
                 int z = centerZ + (int)(Math.sin(angle) * radius);
 
-                // Load chunk sync on main thread via completable future
-                org.bukkit.Chunk chunk = world.getChunkAtAsync(x >> 4, z >> 4).get();
+                world.getChunkAt(x >> 4, z >> 4); // ensure chunk is loaded
 
                 Location loc = getSafeY(world, x, z, isNether);
                 if (loc != null) {
@@ -123,9 +122,9 @@ public class LocationPoolManager {
         int topY = isNether ? 120 : world.getHighestBlockYAt(x, z);
 
         for (int y = topY; y > minY; y--) {
-            Block ground = world.getBlock(x, y, z);
-            Block feet   = world.getBlock(x, y + 1, z);
-            Block head   = world.getBlock(x, y + 2, z);
+            Block ground = new Location(world, x, y,     z).getBlock();
+            Block feet   = new Location(world, x, y + 1, z).getBlock();
+            Block head   = new Location(world, x, y + 2, z).getBlock();
 
             if (!ground.getType().isAir() && ground.getType().isSolid()
                     && ground.getType() != Material.WATER

@@ -192,7 +192,7 @@ public class RTPManager {
                 int x = centerX + (int)(Math.cos(angle) * radius);
                 int z = centerZ + (int)(Math.sin(angle) * radius);
 
-                world.getChunkAtAsync(x >> 4, z >> 4).get();
+                world.getChunkAt(x >> 4, z >> 4); // ensure chunk is loaded
 
                 Location candidate = getSafeY(world, x, z, isNether);
                 if (candidate != null) {
@@ -209,9 +209,9 @@ public class RTPManager {
         int minY = isNether ? world.getMinHeight() + 1 : world.getMinHeight();
 
         for (int y = topY; y > minY; y--) {
-            var ground = world.getBlock(x, y, z);
-            var feet   = world.getBlock(x, y + 1, z);
-            var head   = world.getBlock(x, y + 2, z);
+            var ground = new Location(world, x, y,     z).getBlock();
+            var feet   = new Location(world, x, y + 1, z).getBlock();
+            var head   = new Location(world, x, y + 2, z).getBlock();
             var type   = ground.getType();
 
             if (!type.isAir() && type.isSolid()
