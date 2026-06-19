@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 
 import java.io.*;
 import java.net.*;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -25,7 +26,7 @@ public class NetworkManager {
         this.plugin = plugin;
     }
 
-    // ── Socket server — receives RTP triggers from other servers ─────────────
+    // ── Socket server — listens for RTP triggers from other servers ──────────
 
     public void startSocketServer() {
         int port = plugin.getConfig().getInt("NETWORK.SOCKET-PORT", 25575);
@@ -80,7 +81,7 @@ public class NetworkManager {
         }
     }
 
-    // Retry until player is online (up to ~10 seconds)
+    // Retry until player is online, up to ~10 seconds
     private void scheduleRtpOnJoin(UUID uuid, String worldName) {
         ConcurrentHashMap<UUID, Integer> attempts = new ConcurrentHashMap<>();
         attempts.put(uuid, 0);
@@ -100,30 +101,15 @@ public class NetworkManager {
     // ── Send RTP trigger to target backend via TCP socket ────────────────────
 
     public void sendRtpTrigger(UUID uuid, String targetServerKey) {
-        String proxyIp = null;
-        int socketPort = plugin.getConfig().getInt("NETWORK.SOCKET-PORT", 25575);
-
-        ConfigurationSection regions = plugin.getConfig().getConfigurationSection("NETWORK.REGIONS");
-        if (regions != null) {
-            for (String regionName : regions.getKeys(false)) {
-                java.util.List<String> servers = plugin.getConfig()
-                        .getStringList("NETWORK.REGIONS." + regionName + ".SERVERS");
-                if (servers.contains(targetServerKey)) {
-                    proxyIp    = plugin.getConfig().getString("NETWORK.REGIONS." + regionName + ".PROXY-IP");
-                    socketPort = plugin.getConfig().getInt("NETWORK.REGIONS." + regionName + ".SOCKET-PORT", socketPort);
-                    break;
-                }
-            }
-        }
-
-        if (proxyIp == null) {
-            plugin.getLogger().warning("[RTP] No PROXY-IP found for server: " + targetServerKey);
+        String regionPath = getRegionPath(targetServerKey);
+        if (regionPath == null) {
+            plugin.getLogger().warning("[RTP] No region found for server: " + targetServerKey);
             return;
         }
 
-        final String ip   = proxyIp;
-        final int port    = socketPort;
-        final String msg  = SECRET + ":" + uuid + ":" + targetServerKey;
+        String ip   = plugin.getConfig().getString(regionPath + ".PROXY-IP");
+        int port    = plugin.getConfig().getInt("NETWORK.SOCKET-PORT", 25575);
+        String msg  = SECRET + ":" + uuid + ":" + targetServerKey;
 
         plugin.getLogger().info("[RTP] Sending socket trigger to " + ip + ":" + port);
         executor.submit(() -> {
@@ -137,42 +123,39 @@ public class NetworkManager {
         });
     }
 
-    // ── Transfer player to another proxy using MC 1.20.5 Transfer packet ─────
-    // Both your proxies have accepts-transfers = true so this works natively.
+    // ── Transfer player to target proxy using MC 1.20.5 Transfer packet ──────
 
     public void transferToProxy(Player player, String targetServerKey) {
-        String proxyIp   = null;
-        int proxyPort    = 25565;
-
-        ConfigurationSection regions = plugin.getConfig().getConfigurationSection("NETWORK.REGIONS");
-        if (regions != null) {
-            for (String regionName : regions.getKeys(false)) {
-                java.util.List<String> servers = plugin.getConfig()
-                        .getStringList("NETWORK.REGIONS." + regionName + ".SERVERS");
-                if (servers.contains(targetServerKey)) {
-                    proxyIp   = plugin.getConfig().getString("NETWORK.REGIONS." + regionName + ".PROXY-IP");
-                    proxyPort = plugin.getConfig().getInt("NETWORK.REGIONS." + regionName + ".PROXY-PORT", 25565);
-                    break;
-                }
-            }
-        }
-
-        if (proxyIp == null) {
-            plugin.getLogger().warning("[RTP] No PROXY-IP found for transfer to: " + targetServerKey);
+        String regionPath = getRegionPath(targetServerKey);
+        if (regionPath == null) {
+            plugin.getLogger().warning("[RTP] No region found for transfer: " + targetServerKey);
             return;
         }
 
-        final String ip  = proxyIp;
-        final int port   = proxyPort;
+        String ip = plugin.getConfig().getString(regionPath + ".PROXY-IP");
+        int port  = plugin.getConfig().getInt(regionPath + ".PROXY-PORT", 25565);
 
-        // 1-tick delay required before sending transfer packet
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline()) return;
             plugin.getLogger().info("[RTP] Transferring " + player.getName()
-                    + " to proxy " + ip + ":" + port);
-            // Use Bukkit's built-in transfer (1.20.5+)
+                    + " to " + ip + ":" + port);
             player.transfer(ip, port);
         }, 1L);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private String getRegionPath(String serverKey) {
+        ConfigurationSection regions = plugin.getConfig().getConfigurationSection("NETWORK.REGIONS");
+        if (regions == null) return null;
+        for (String regionName : regions.getKeys(false)) {
+            List<String> servers = plugin.getConfig()
+                    .getStringList("NETWORK.REGIONS." + regionName + ".SERVERS");
+            if (servers.contains(serverKey)) {
+                return "NETWORK.REGIONS." + regionName;
+            }
+        }
+        return null;
     }
 
     public String getLocalServer() {
