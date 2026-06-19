@@ -1,0 +1,233 @@
+ENABLED: true
+SETTINGS:
+  PLAYERS-IN-RTP: 150
+  MAX-ATTEMPTS: 25
+  COUNTDOWN: 5
+  # How many safe locations to pre-generate per world and keep ready.
+  POOL-SIZE: 20
+  # How often (in ticks) to attempt refilling the pool. 20 ticks = 1 second.
+  POOL-REFILL-INTERVAL: 40
+  # How many locations to try generating per refill tick (runs async).
+  POOL-FILL-BATCH: 5
+
+MESSAGES:
+  DISABLED: "&cRTP is currently disabled."
+  COOLDOWN: "&cYou can't rtp for another {remaining}s."
+  MAX-PLAYERS: "&cToo many players are using RTP right now. Please try again later."
+  WORLD-NOT-EXIST: "&cThe world does not exist."
+  SEARCHING: "&dSearching for a safe location..."
+  SAFE-LOCATION-FOUND: ""
+  MAX-ATTEMPTS: "&cCould not find a safe location after {attempts} attempts."
+  DESTINATION-DISABLED: "&cThis RTP destination is currently disabled."
+  UNSAFE-LOCATION: "&cThe location is unsafe"
+  POOL-WARMING: "&eRTP pool is warming up, please try again in a moment."
+
+DENIED-WORLDS:
+  - afk
+
+# Bukkit world-level settings (used for location pool generation)
+WORLD-SETTINGS:
+  world:
+    MAX-RADIUS: 20000
+    MIN-RADIUS: 10000
+    CENTER-X: 0
+    CENTER-Z: 0
+    COOLDOWN: 0
+  world_nether:
+    MAX-RADIUS: 7500
+    MIN-RADIUS: 5000
+    CENTER-X: 0
+    CENTER-Z: 0
+    COOLDOWN: 0
+  world_the_end:
+    MAX-RADIUS: 10000
+    MIN-RADIUS: 7000
+    CENTER-X: 0
+    CENTER-Z: 0
+    COOLDOWN: 0
+
+# Network / BungeeCord proxy config
+NETWORK:
+  REGIONS:
+    NA:
+      PROXY-IP: "45.59.171.251"
+      PROXY-PORT: 25571
+      SERVERS:
+        - "na"
+    EU:
+      PROXY-IP: "185.207.164.100"
+      PROXY-PORT: 12003
+      SERVERS:
+        - "eu"
+
+# Per-server RTP radius/world settings used by the network layer
+SERVER-SETTINGS:
+  na:
+    TARGET-WORLD: "world"
+    MAX-RADIUS: 2000
+    MIN-RADIUS: 500
+    CENTER-X: 0
+    CENTER-Z: 0
+    COOLDOWN: 5
+  na_nether:
+    TARGET-WORLD: "world_nether"
+    MAX-RADIUS: 5000
+    MIN-RADIUS: 500
+    CENTER-X: 0
+    CENTER-Z: 0
+    COOLDOWN: 5
+  na_end:
+    TARGET-WORLD: "world_the_end"
+    MAX-RADIUS: 5000
+    MIN-RADIUS: 1500
+    CENTER-X: 0
+    CENTER-Z: 0
+    COOLDOWN: 5
+  eu:
+    TARGET-WORLD: "world"
+    MAX-RADIUS: 2000
+    MIN-RADIUS: 500
+    CENTER-X: 0
+    CENTER-Z: 0
+    COOLDOWN: 5
+  eu_nether:
+    TARGET-WORLD: "world_nether"
+    MAX-RADIUS: 5000
+    MIN-RADIUS: 500
+    CENTER-X: 0
+    CENTER-Z: 0
+    COOLDOWN: 5
+  eu_end:
+    TARGET-WORLD: "world_the_end"
+    MAX-RADIUS: 5000
+    MIN-RADIUS: 1500
+    CENTER-X: 0
+    CENTER-Z: 0
+    COOLDOWN: 5
+
+# Region sub-menus shown when ENABLED-REGION: true button is clicked
+REGION-MENUS:
+  ENABLED: true
+  OVERWORLD:
+    TITLE: "&8ᴏᴠᴇʀᴡᴏʀʟᴅ ʀᴇɢɪᴏɴѕ"
+    SIZE: 27
+    PLACEHOLDER: true
+    BUTTONS:
+      NA:
+        DISPLAY-NAME: "&#f40d0d&lᴏᴠᴇʀᴡᴏʀʟᴅ"
+        MATERIAL: "GRASS_BLOCK"
+        SLOT: 10
+        SERVERS:
+          - "na"
+        LORE:
+          - "&fClick to randomly teleport to an NA server"
+          - ""
+          - "&7Ping: &b{ping}ms"
+      EU:
+        DISPLAY-NAME: "&#f40d0d&lᴏᴠᴇʀᴡᴏʀʟᴅ"
+        MATERIAL: "GRASS_BLOCK"
+        SLOT: 11
+        SERVERS:
+          - "eu"
+        LORE:
+          - "&fClick to randomly teleport to an EU server"
+          - ""
+          - "&7Ping: &b{ping}ms"
+  NETHER:
+    TITLE: "&8ɴᴇᴛʜᴇʀ ʀᴇɢɪᴏɴѕ"
+    SIZE: 27
+    PLACEHOLDER: true
+    BUTTONS:
+      NA:
+        DISPLAY-NAME: "&#f40d0d&lɴᴇᴛʜᴇʀ"
+        MATERIAL: "NETHERRACK"
+        SLOT: 10
+        SERVERS:
+          - "na_nether"
+        LORE:
+          - "&fClick to randomly teleport to an NA server"
+          - ""
+          - "&7Ping: &b{ping}ms"
+      EU:
+        DISPLAY-NAME: "&#f40d0d&lɴᴇᴛʜᴇʀ"
+        MATERIAL: "NETHERRACK"
+        SLOT: 11
+        SERVERS:
+          - "eu_nether"
+        LORE:
+          - "&fClick to randomly teleport to an EU server"
+          - ""
+          - "&7Ping: &b{ping}ms"
+  THE_END:
+    TITLE: "&8ᴇɴᴅ ʀᴇɢɪᴏɴѕ"
+    SIZE: 27
+    PLACEHOLDER: true
+    BUTTONS:
+      NA:
+        DISPLAY-NAME: "&#f40d0d&lᴇɴᴅ"
+        MATERIAL: "END_STONE"
+        SLOT: 10
+        SERVERS:
+          - "na_end"
+        LORE:
+          - "&fClick to randomly teleport to an NA server"
+          - ""
+          - "&7Ping: &b{ping}ms"
+      EU:
+        DISPLAY-NAME: "&#f40d0d&lᴇɴᴅ"
+        MATERIAL: "END_STONE"
+        SLOT: 11
+        SERVERS:
+          - "eu_end"
+        LORE:
+          - "&fClick to randomly teleport to an EU server"
+          - ""
+          - "&7Ping: &b{ping}ms"
+
+# Main RTP menu
+RTP-MENU:
+  TITLE: "&8ʀᴀɴᴅᴏᴍ ᴛᴇʟᴇᴘᴏʀᴛ"
+  SIZE: 27
+  PLACEHOLDER: true
+  BUTTONS:
+    OVERWORLD:
+      # true = opens the REGION-MENUS.OVERWORLD sub-menu instead of teleporting directly
+      ENABLED-REGION: true
+      DISPLAY-NAME: "&#f40d0d&lᴏᴠᴇʀᴡᴏʀʟᴅ"
+      MATERIAL: "GRASS_BLOCK"
+      SLOT: 11
+      WORLD: "world"
+      SERVERS:
+        - "na"
+      ENABLED: true
+      LORE:
+        - "&fClick to randomly teleport"
+        - ""
+        - "&7Ping: &b{ping}ms"
+    NETHER:
+      # false = teleports directly without a region sub-menu
+      ENABLED-REGION: false
+      DISPLAY-NAME: "&#f40d0d&lɴᴇᴛʜᴇʀ"
+      MATERIAL: "NETHERRACK"
+      SLOT: 13
+      WORLD: "world_nether"
+      SERVERS:
+        - "na_nether"
+      ENABLED: true
+      LORE:
+        - "&fClick to randomly teleport"
+        - ""
+        - "&7Ping: &b{ping}ms"
+    THE_END:
+      ENABLED-REGION: false
+      DISPLAY-NAME: "&#f40d0d&lᴇɴᴅ"
+      MATERIAL: "END_STONE"
+      SLOT: 15
+      WORLD: "world_the_end"
+      SERVERS:
+        - "na_end"
+      ENABLED: true
+      LORE:
+        - "&fClick to randomly teleport"
+        - ""
+        - "&7Ping: &b{ping}ms"
