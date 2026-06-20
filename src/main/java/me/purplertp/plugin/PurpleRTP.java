@@ -29,6 +29,7 @@ public class PurpleRTP extends JavaPlugin {
         networkManager      = new NetworkManager(this);
 
         locationPoolManager.startPoolFilling();
+        networkManager.startSocketServer();
 
         RTPMenuListener menuListener = new RTPMenuListener(this);
         getCommand("rtp").setExecutor(new RTPCommand(this, menuListener));
@@ -43,6 +44,7 @@ public class PurpleRTP extends JavaPlugin {
     public void onDisable() {
         cooldownManager.saveCooldowns();
         locationPoolManager.shutdown();
+        networkManager.stopSocketServer();
         getLogger().info("PurpleRTP disabled.");
     }
 

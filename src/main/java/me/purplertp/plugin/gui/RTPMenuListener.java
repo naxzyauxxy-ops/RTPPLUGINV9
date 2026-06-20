@@ -109,13 +109,14 @@ public class RTPMenuListener implements Listener {
             String localServer = plugin.getNetworkManager().getLocalServer();
 
             if (plugin.getNetworkManager().isSameRegion(localServer, serverKey)) {
-                // Local server — RTP directly
+                // Same region — RTP locally
                 String worldName = cfg.getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world");
                 plugin.getRtpManager().randomTeleport(player, worldName);
             } else {
-                // Different region — not supported on this server
-                sendActionBar(player, "&8(&#f40d0d!&8) &7You must connect to the &#f40d0d"
-                        + regionKey.toUpperCase() + " &7proxy to use this region.");
+                // Different region — send socket trigger then transfer
+                sendActionBar(player, "&8(&#f40d0d!&8) &7Connecting to &#f40d0d" + regionKey.toUpperCase() + "&7...");
+                plugin.getNetworkManager().sendRtpTrigger(player.getUniqueId(), serverKey);
+                plugin.getNetworkManager().transferToProxy(player, serverKey);
             }
             return;
         }
