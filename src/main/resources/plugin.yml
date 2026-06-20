@@ -3,7 +3,7 @@ version: '${project.version}'
 main: me.purplertp.plugin.PurpleRTP
 api-version: '1.21'
 description: Network-aware random teleport plugin with region menus.
-authors: [PurpleRTP]
+authors: [NaxzyAuxxy]
 
 # BungeeCord/Velocity plugin messaging channels
 channel: BungeeCord
