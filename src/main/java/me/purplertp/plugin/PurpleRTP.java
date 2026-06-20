@@ -36,8 +36,7 @@ public class PurpleRTP extends JavaPlugin {
         getCommand("rtpadmin").setExecutor(new RTPAdminCommand(this));
         getServer().getPluginManager().registerEvents(menuListener, this);
 
-        getLogger().info("PurpleRTP enabled. LOCAL-SERVER="
-                + getConfig().getString("NETWORK.LOCAL-SERVER", "(not set)"));
+        getLogger().info("PurpleRTP (EU) enabled. LOCAL-SERVER=eu");
     }
 
     @Override
@@ -45,7 +44,7 @@ public class PurpleRTP extends JavaPlugin {
         cooldownManager.saveCooldowns();
         locationPoolManager.shutdown();
         networkManager.stopSocketServer();
-        getLogger().info("PurpleRTP disabled.");
+        getLogger().info("PurpleRTP (EU) disabled.");
     }
 
     public static PurpleRTP getInstance()               { return instance; }
