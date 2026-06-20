@@ -30,9 +30,6 @@ public class PurpleRTP extends JavaPlugin {
 
         locationPoolManager.startPoolFilling();
 
-        // Start TCP socket server to receive RTP triggers from other servers
-        networkManager.startSocketServer();
-
         RTPMenuListener menuListener = new RTPMenuListener(this);
         getCommand("rtp").setExecutor(new RTPCommand(this, menuListener));
         getCommand("rtpadmin").setExecutor(new RTPAdminCommand(this));
@@ -46,7 +43,6 @@ public class PurpleRTP extends JavaPlugin {
     public void onDisable() {
         cooldownManager.saveCooldowns();
         locationPoolManager.shutdown();
-        networkManager.stopSocketServer();
         getLogger().info("PurpleRTP disabled.");
     }
 

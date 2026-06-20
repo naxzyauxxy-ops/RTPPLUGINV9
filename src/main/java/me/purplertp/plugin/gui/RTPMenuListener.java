@@ -76,7 +76,7 @@ public class RTPMenuListener implements Listener {
                     menu.openRegionMenu(player, key, this);
                 } else {
                     if (plugin.getRtpManager().isInRtp(player.getUniqueId())) {
-                        sendActionBar(player, "&#f40d0d(!) &7You are already teleporting!");
+                        sendActionBar(player, "&8(&#f40d0d!&8) &7You are already teleporting!");
                         return;
                     }
                     plugin.getRtpManager().randomTeleport(player, worldName);
@@ -98,7 +98,7 @@ public class RTPMenuListener implements Listener {
             player.closeInventory();
 
             if (plugin.getRtpManager().isInRtp(player.getUniqueId())) {
-                sendActionBar(player, "&#f40d0d(!) &7You are already teleporting!");
+                sendActionBar(player, "&8(&#f40d0d!&8) &7You are already teleporting!");
                 return;
             }
 
@@ -108,16 +108,14 @@ public class RTPMenuListener implements Listener {
 
             String localServer = plugin.getNetworkManager().getLocalServer();
 
-            if (!localServer.isEmpty() && localServer.equalsIgnoreCase(serverKey)) {
-                // Already on this server — RTP locally
+            if (plugin.getNetworkManager().isSameRegion(localServer, serverKey)) {
+                // Local server — RTP directly
                 String worldName = cfg.getString("SERVER-SETTINGS." + serverKey + ".TARGET-WORLD", "world");
                 plugin.getRtpManager().randomTeleport(player, worldName);
             } else {
-                // 1) Tell target backend to RTP this player when they arrive
-                plugin.getNetworkManager().sendRtpTrigger(player.getUniqueId(), serverKey);
-                // 2) Transfer player directly to the target proxy (MC 1.20.5 Transfer packet)
-                sendActionBar(player, "&8(&#f40d0d!&8) &7Connecting to &#f40d0d" + serverKey.toUpperCase() + "&7...");
-                plugin.getNetworkManager().transferToProxy(player, serverKey);
+                // Different region — not supported on this server
+                sendActionBar(player, "&8(&#f40d0d!&8) &7You must connect to the &#f40d0d"
+                        + regionKey.toUpperCase() + " &7proxy to use this region.");
             }
             return;
         }
